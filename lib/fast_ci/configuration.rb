@@ -10,8 +10,8 @@ module FastCI
       self.build_id = ENV.fetch("BUILD_ID")
       self.commit = `git rev-parse --short HEAD`.chomp
       self.branch = `git rev-parse --abbrev-ref HEAD`.chomp
-      self.api_url = ENV['FAST_CI_API_URL'] || "api.fast.ci"
-      self.secret_key = ENV.fetch('FAST_CI_SECRET_KEY')
+      self.api_url = ENV["FAST_CI_API_URL"] || "api.fast.ci"
+      self.secret_key = ENV.fetch("FAST_CI_SECRET_KEY")
     end
 
     def reset

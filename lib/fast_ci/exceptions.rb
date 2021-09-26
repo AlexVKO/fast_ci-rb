@@ -9,8 +9,8 @@ module FastCI
 
   class EventNotSupportedError < StandardError
     def initialize(event)
-      msg = "Event '#{event}' not supported. \n" +
-        "Supported events are #{FastCI::SUPPORTED_EVENTS.inspect}}"
+      msg = "Event '#{event}' not supported. \n" \
+            "Supported events are #{FastCI::SUPPORTED_EVENTS.inspect}}"
       super(msg)
     end
   end

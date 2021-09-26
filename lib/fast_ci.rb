@@ -4,9 +4,9 @@ require_relative "fast_ci/version"
 require_relative "fast_ci/configuration"
 require_relative "fast_ci/exceptions"
 
-require 'async'
-require 'async/http/endpoint'
-require 'async/websocket/client'
+require "async"
+require "async/http/endpoint"
+require "async/websocket/client"
 
 module FastCI
   class Error < StandardError; end
@@ -36,7 +36,7 @@ module FastCI
   class WebSocket
     attr_reader :node_index
 
-    SUPPORTED_EVENTS=%i[enq_request deq].freeze
+    SUPPORTED_EVENTS = %i[enq_request deq].freeze
 
     def initialize
       @on = {}
@@ -44,15 +44,15 @@ module FastCI
     end
 
     def on(event, &block)
-      raise(EventNotSupportedError.new(event)) unless SUPPORTED_EVENTS.include?(event)
-      raise(EventAlreadyDefinedError.new(event)) if @on[event]
+      raise EventNotSupportedError, event unless SUPPORTED_EVENTS.include?(event)
+      raise EventAlreadyDefinedError, event if @on[event]
 
       @on[event] = block
     end
 
     def send_msg(connection, event, payload = {})
       FastCI.debug("ws#send_msg: #{event} -> #{payload.inspect}")
-      connection.write({"topic": topic, "event": event, "payload":payload, "ref": ref})
+      connection.write({ "topic": topic, "event": event, "payload": payload, "ref": ref })
       connection.flush
     end
 
@@ -68,12 +68,12 @@ module FastCI
 
             response = message.dig(:payload, :response)
 
-            case response&.dig(:event) || message.dig(:event)
-            when 'join'
+            case response&.dig(:event) || message[:event]
+            when "join"
               handle_join(connection, response)
-            when 'deq_request'
+            when "deq_request"
               handle_deq_request(connection, response)
-            when 'deq'
+            when "deq"
               if (tests = response[:tests]).any?
                 result = @on[:deq].call(tests)
                 task.async do
@@ -99,12 +99,16 @@ module FastCI
 
     # https://github.com/bblimke/webmock/blob/b709ba22a2949dc3bfac662f3f4da88a21679c2e/lib/webmock/http_lib_adapters/async_http_client_adapter.rb#L8
     def before_start_connection
-      WebMock::HttpLibAdapters::AsyncHttpClientAdapter.disable! if defined?(WebMock::HttpLibAdapters::AsyncHttpClientAdapter)
+      if defined?(WebMock::HttpLibAdapters::AsyncHttpClientAdapter)
+        WebMock::HttpLibAdapters::AsyncHttpClientAdapter.disable!
+      end
     end
 
     # https://github.com/bblimke/webmock/blob/b709ba22a2949dc3bfac662f3f4da88a21679c2e/lib/webmock/http_lib_adapters/async_http_client_adapter.rb#L8
     def after_start_connection
-      WebMock::HttpLibAdapters::AsyncHttpClientAdapter.enable! if defined?(WebMock::HttpLibAdapters::AsyncHttpClientAdapter)
+      if defined?(WebMock::HttpLibAdapters::AsyncHttpClientAdapter)
+        WebMock::HttpLibAdapters::AsyncHttpClientAdapter.enable!
+      end
     end
 
     def handle_join(connection, response)
@@ -112,16 +116,12 @@ module FastCI
 
       FastCI.debug("NODE_INDEX: #{@node_index}")
 
-      if node_index == 0
-        send_msg(connection, "enq", { tests: @on[:enq_request].call })
-      end
+      send_msg(connection, "enq", { tests: @on[:enq_request].call }) if node_index.zero?
 
-      if response[:state] == "running"
-        send_msg(connection, "deq")
-      end
+      send_msg(connection, "deq") if response[:state] == "running"
     end
 
-    def handle_deq_request(connection, response)
+    def handle_deq_request(connection, _response)
       send_msg(connection, "deq")
     end
 
@@ -135,12 +135,12 @@ module FastCI
 
     def endpoint
       params = URI.encode_www_form({
-        build_id: FastCI.configuration.build_id,
-        run_key: FastCI.configuration.run_key,
-        secret_key: FastCI.configuration.secret_key,
-        commit: FastCI.configuration.commit,
-        branch: FastCI.configuration.branch,
-      })
+                                     build_id: FastCI.configuration.build_id,
+                                     run_key: FastCI.configuration.run_key,
+                                     secret_key: FastCI.configuration.secret_key,
+                                     commit: FastCI.configuration.commit,
+                                     branch: FastCI.configuration.branch
+                                   })
 
       url = "ws://#{FastCI.configuration.api_url}/test_orchestrators/socket/websocket?#{params}"
 
