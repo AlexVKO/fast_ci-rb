@@ -29,7 +29,7 @@ module FastCI
     end
 
     def debug(msg)
-      puts "\e[36mDEBUG: \e[0m #{msg}" if ENV["DEBUG"]
+      puts "\n\e[36mDEBUG: \e[0m #{msg}\n" if ENV["FAST_CI_DEBUG"]
     end
   end
 
@@ -53,11 +53,14 @@ module FastCI
     def send_msg(connection, event, payload = {})
       FastCI.debug("ws#send_msg: #{event} -> #{payload.inspect}")
       connection.write({"topic": topic, "event": event, "payload":payload, "ref": ref})
+      connection.flush
     end
 
     def await
+      before_start_connection
       Async do |task|
         Async::WebSocket::Client.connect(endpoint) do |connection|
+          after_start_connection
           send_msg(connection, "phx_join")
 
           while message = connection.read
@@ -72,10 +75,12 @@ module FastCI
               handle_deq_request(connection, response)
             when 'deq'
               if (tests = response[:tests]).any?
-                @on[:deq].call(tests)
-                send_msg(connection, "deq")
+                result = @on[:deq].call(tests)
+                task.async do
+                  send_msg(connection, "deq", result)
+                end
               else
-                connection.close
+                break
               end
             when "error"
               raise(response.inspect)
@@ -83,11 +88,24 @@ module FastCI
               puts response
             end
           end
+        ensure
+          send_msg(connection, "leave")
+          connection.close
         end
       end
     end
 
     private
+
+    # https://github.com/bblimke/webmock/blob/b709ba22a2949dc3bfac662f3f4da88a21679c2e/lib/webmock/http_lib_adapters/async_http_client_adapter.rb#L8
+    def before_start_connection
+      WebMock::HttpLibAdapters::AsyncHttpClientAdapter.disable! if defined?(WebMock::HttpLibAdapters::AsyncHttpClientAdapter)
+    end
+
+    # https://github.com/bblimke/webmock/blob/b709ba22a2949dc3bfac662f3f4da88a21679c2e/lib/webmock/http_lib_adapters/async_http_client_adapter.rb#L8
+    def after_start_connection
+      WebMock::HttpLibAdapters::AsyncHttpClientAdapter.enable! if defined?(WebMock::HttpLibAdapters::AsyncHttpClientAdapter)
+    end
 
     def handle_join(connection, response)
       @node_index = response[:node_index]
@@ -96,6 +114,10 @@ module FastCI
 
       if node_index == 0
         send_msg(connection, "enq", { tests: @on[:enq_request].call })
+      end
+
+      if response[:state] == "running"
+        send_msg(connection, "deq")
       end
     end
 
