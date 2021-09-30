@@ -26,7 +26,7 @@ RSpec.describe FastCI do
       c.run_key = "rspec"
     end
 
-    tests = {"file1" => {}, "file2" => {}, "file3" => {}, "file4" => {}}
+    tests = { "file1" => {}, "file2" => {}, "file3" => {}, "file4" => {} }
 
     FastCI.ws.on(:enq_request) do
       # Needs to return a list of tests to be sent to the API
@@ -45,7 +45,7 @@ RSpec.describe FastCI do
       results = {}
       tests.each do |test|
         runner.run(test)
-        results[test] = {"run_time" => 1, "status" => "passed"}
+        results[test] = { "run_time" => 1, "status" => "passed" }
       end
       results
     end
